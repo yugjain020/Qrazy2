@@ -228,3 +228,44 @@ export async function uploadProductImage(
 
   return downloadUrl;
 }
+
+// ---------- QR Code Operations ----------
+
+export async function createQRCode(
+  workspaceId: string,
+  ownerId: string,
+  data: {
+    productId: string;
+    linkedArUrl: string;
+    qrImageUrl: string;
+    style: { color: string; backgroundColor: string; logoUrl: string | null };
+  }
+): Promise<string> {
+  const qrcodesRef = collection(db, 'qrcodes');
+  const docRef = await addDoc(qrcodesRef, {
+    ...data,
+    workspaceId,
+    ownerId,
+    scanCount: 0,
+    createdAt: serverTimestamp(),
+  });
+
+  await updateDoc(docRef, { qrcodeId: docRef.id });
+  return docRef.id;
+}
+
+export async function getQRCodesByWorkspace(workspaceId: string) {
+  const qrcodesRef = collection(db, 'qrcodes');
+  const q = query(qrcodesRef, where('workspaceId', '==', workspaceId));
+  const snapshot = await getDocs(q);
+  
+  return snapshot.docs.map((doc) => ({
+    ...doc.data(),
+    id: doc.id,
+  }));
+}
+
+export async function deleteQRCode(qrcodeId: string) {
+  const qrcodeRef = doc(db, 'qrcodes', qrcodeId);
+  await deleteDoc(qrcodeRef);
+}
