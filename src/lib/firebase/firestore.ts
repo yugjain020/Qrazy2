@@ -468,3 +468,16 @@ export async function uploadProfilePicture(
   await uploadBytes(storageRef, file);
   return getDownloadURL(storageRef);
 }
+
+// ---------- Template Operations ----------
+
+export async function getTemplatesFromFirestore(workspaceId: string) {
+  const templatesRef = collection(db, 'templates');
+  const q = query(templatesRef, where('isPublic', '==', true));
+  const snapshot = await getDocs(q);
+  
+  return snapshot.docs.map((doc) => ({
+    ...doc.data(),
+    id: doc.id,
+  }));
+}
