@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, forwardRef } from 'react';
+import React, { forwardRef } from 'react';
 
 interface ModelViewerProps {
   src: string;
@@ -17,11 +17,10 @@ interface ModelViewerProps {
   children?: React.ReactNode;
 }
 
-// Cast 'model-viewer' to any to bypass TypeScript JSX IntrinsicElements error
-const ModelViewerTag = 'model-viewer' as any;
-
 const ModelViewer = forwardRef<any, ModelViewerProps>((props, ref) => {
-  return <ModelViewerTag ref={ref} {...props} />;
+  // Using React.createElement completely bypasses the JSX IntrinsicElements type checker.
+  // This is the safest way to wrap Web Components in React + TypeScript.
+  return React.createElement('model-viewer', { ...props, ref });
 });
 
 ModelViewer.displayName = 'ModelViewer';
