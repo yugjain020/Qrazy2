@@ -438,3 +438,33 @@ export function aggregateAnalytics(events: any[]) {
     devices,
   };
 }
+
+// ---------- User Profile Updates ----------
+
+export async function updateUserProfile(
+  uid: string,
+  data: {
+    displayName?: string;
+    photoURL?: string;
+  }
+) {
+  const userRef = doc(db, 'users', uid);
+  await updateDoc(userRef, data);
+}
+
+export async function updateWorkspaceName(
+  workspaceId: string,
+  workspaceName: string
+) {
+  const workspaceRef = doc(db, 'workspaces', workspaceId);
+  await updateDoc(workspaceRef, { workspaceName });
+}
+
+export async function uploadProfilePicture(
+  file: File,
+  uid: string
+): Promise<string> {
+  const storageRef = ref(storage, `avatars/${uid}/${Date.now()}-${file.name}`);
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+}
