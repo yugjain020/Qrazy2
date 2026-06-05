@@ -1,6 +1,5 @@
 'use client';
 
-import ModelViewer from '@/components/ar/ModelViewer';
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -15,14 +14,7 @@ import {
 } from 'lucide-react';
 import { getProductById, getWorkspace, trackAnalyticsEvent, getDeviceType, generateSessionId } from '@/lib/firebase/firestore';
 import { BUSINESS_TYPES } from '@/lib/verticals/config';
-
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      'model-viewer': any;
-    }
-  }
-}
+import ModelViewer from '@/components/ar/ModelViewer';
 
 export default function ARProductPage() {
   const params = useParams();
@@ -32,9 +24,12 @@ export default function ARProductPage() {
   const [error, setError] = useState('');
   const [sessionId] = useState(generateSessionId());
   const modelViewerRef = useRef<any>(null);
-  const ModelViewer = 'model-viewer' as any;
 
   useEffect(() => {
+    if (!params?.workspaceId || !params?.productId) {
+      return; 
+    }
+
     const fetchData = async () => {
       try {
         const productId = params.productId as string;
@@ -46,25 +41,32 @@ export default function ARProductPage() {
         ]);
 
         if (!productData) {
-          setError('Product not found');
+          setError('Product not found. It may have been deleted.');
           return;
         }
 
         setProduct(productData);
         setWorkspace(workspaceData);
 
-        // Track QR Scan
-        await trackAnalyticsEvent({
-          eventType: 'qr_scan',
-          productId,
-          workspaceId,
-          deviceType: getDeviceType(),
-          sessionId,
-        });
+        try {
+          await trackAnalyticsEvent({
+            eventType: 'qr_scan',
+            productId,
+            workspaceId,
+            deviceType: getDeviceType(),
+            sessionId,
+          });
+        } catch (analyticsError) {
+          console.warn('Failed to track analytics event:', analyticsError);
+        }
 
-      } catch (err) {
-        console.error(err);
-        setError('Failed to load AR experience');
+      } catch (err: any) {
+        console.error('Error fetching AR data:', err);
+        if (err.code === 'permission-denied') {
+          setError('Permission denied. Please check your Firestore Security Rules.');
+        } else {
+          setError('Failed to load AR experience. Please check your connection.');
+        }
       } finally {
         setLoading(false);
       }
@@ -74,29 +76,30 @@ export default function ARProductPage() {
   }, [params]);
 
   const handleARLaunch = async () => {
-    // Track AR Launch
-    await trackAnalyticsEvent({
-      eventType: 'ar_launch',
-      productId: params.productId as string,
-      workspaceId: params.workspaceId as string,
-      deviceType: getDeviceType(),
-      sessionId,
-    });
+    try {
+      await trackAnalyticsEvent({
+        eventType: 'ar_launch',
+        productId: params.productId as string,
+        workspaceId: params.workspaceId as string,
+        deviceType: getDeviceType(),
+        sessionId,
+      });
+    } catch {}
   };
 
   const handleShare = async () => {
+    const url = window.location.href;
     if (navigator.share) {
       try {
         await navigator.share({
           title: product?.name || 'Check this out!',
           text: `Experience ${product?.name} in AR!`,
-          url: window.location.href,
+          url,
         });
-      } catch (err) {
-        // User cancelled share
-      }
+      } catch (err) {}
     } else {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(url);
+      alert('Link copied to clipboard!');
     }
   };
 
@@ -184,8 +187,15 @@ export default function ARProductPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           
-          {/* 3D Model Viewer (Takes up 3 columns on desktop) */}
-                        {product.glbUrl ? (
+          {/* 3D Model Viewer */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="lg:col-span-3"
+          >
+            <div className="glass-card overflow-hidden">
+              {product.glbUrl ? (
                 <div className="relative">
                   <ModelViewer
                     ref={modelViewerRef}
@@ -201,7 +211,6 @@ export default function ARProductPage() {
                     style={{ width: '100%', height: '500px', backgroundColor: 'transparent' }}
                   />
 
-                  {/* Custom AR Button (Overlay) */}
                   <button
                     onClick={handleARLaunch}
                     className="px-4 py-2 bg-gradient-to-r from-brand-600 to-brand-500 text-white rounded-xl text-sm font-medium shadow-lg shadow-brand-500/30 flex items-center gap-2 absolute bottom-4 left-1/2 -translate-x-1/2 z-10 hover:from-brand-500 hover:to-brand-400 transition-all"
@@ -223,15 +232,16 @@ export default function ARProductPage() {
                   </p>
                 </div>
               )}
+            </div>
+          </motion.div>
 
-          {/* Product Info Sidebar (Takes up 2 columns on desktop) */}
+          {/* Product Info Sidebar */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
             className="lg:col-span-2 space-y-4"
           >
-            {/* Product Details Card */}
             <div className="glass-card p-6">
               <h1 className="font-display text-2xl font-bold text-gray-900 dark:text-white mb-2">
                 {product.name}
@@ -242,7 +252,6 @@ export default function ARProductPage() {
                 </p>
               )}
 
-              {/* Vertical Metadata */}
               {product.verticalMetadata && Object.keys(product.verticalMetadata).length > 0 && (
                 <div className="border-t border-gray-100 dark:border-dark-border pt-4 mt-4 space-y-2">
                   {Object.entries(product.verticalMetadata).map(([key, value]) => {
@@ -262,7 +271,6 @@ export default function ARProductPage() {
               )}
             </div>
 
-            {/* AR Instructions Card */}
             <div className="glass-card p-6">
               <h3 className="font-display font-semibold text-gray-900 dark:text-white mb-3">
                 How to View in AR
@@ -297,7 +305,6 @@ export default function ARProductPage() {
               </div>
             </div>
 
-            {/* Workspace Branding Card */}
             {workspace && (
               <div className="glass-card p-4 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center flex-shrink-0">
