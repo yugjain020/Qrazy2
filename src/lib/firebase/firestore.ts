@@ -86,6 +86,16 @@ export async function getWorkspace(workspaceId: string): Promise<Workspace | nul
   return workspaceSnap.data() as Workspace;
 }
 
+// Add this alongside your other workspace functions
+
+export async function updateWorkspaceBusinessType(
+  workspaceId: string,
+  businessType: BusinessType
+): Promise<void> {
+  const workspaceRef = doc(db, 'workspaces', workspaceId);
+  await setDoc(workspaceRef, { businessType }, { merge: true });
+}
+
 // ---------- Combined Setup (Called on Signup) ----------
 
 export async function setupNewUser(
