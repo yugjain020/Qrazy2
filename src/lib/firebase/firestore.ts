@@ -302,3 +302,46 @@ export async function deleteQRCode(qrcodeId: string) {
   const qrcodeRef = doc(db, 'qrcodes', qrcodeId);
   await deleteDoc(qrcodeRef);
 }
+
+// ---------- Analytics Operations ----------
+
+export async function trackAnalyticsEvent(data: {
+  eventType: 'qr_scan' | 'ar_launch' | 'ar_view_duration';
+  productId: string;
+  workspaceId: string;
+  deviceType: string;
+  sessionId: string;
+}) {
+  const analyticsRef = collection(db, 'analytics');
+  await addDoc(analyticsRef, {
+    ...data,
+    timestamp: serverTimestamp(),
+  });
+
+  // Also increment the QR code scan count if it's a qr_scan
+  if (data.eventType === 'qr_scan') {
+    const qrcodesRef = collection(db, 'qrcodes');
+    const q = query(qrcodesRef, where('productId', '==', data.productId));
+    const snapshot = await getDocs(q);
+    
+    if (!snapshot.empty) {
+      const qrDoc = snapshot.docs[0];
+      const currentCount = qrDoc.data().scanCount || 0;
+      await updateDoc(doc(db, 'qrcodes', qrDoc.id), {
+        scanCount: currentCount + 1,
+      });
+    }
+  }
+}
+
+export function getDeviceType(): string {
+  if (typeof window === 'undefined') return 'unknown';
+  const ua = navigator.userAgent;
+  if (/iPad|iPhone|iPod/.test(ua)) return 'ios';
+  if (/android/i.test(ua)) return 'android';
+  return 'desktop';
+}
+
+export function generateSessionId(): string {
+  return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
