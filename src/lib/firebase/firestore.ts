@@ -9,7 +9,8 @@ import {
   query, 
   where, 
   updateDoc, 
-  deleteDoc 
+  deleteDoc, 
+  orderBy
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase/config';
@@ -344,4 +345,96 @@ export function getDeviceType(): string {
 
 export function generateSessionId(): string {
   return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// ---------- Analytics Aggregation ----------
+
+export async function getAnalyticsByWorkspace(
+  workspaceId: string,
+  days: number = 30
+): Promise<any[]> {
+  const analyticsRef = collection(db, 'analytics');
+  
+  // Calculate start date
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  
+  const q = query(
+    analyticsRef,
+    where('workspaceId', '==', workspaceId),
+    orderBy('timestamp', 'desc')
+  );
+  
+  const snapshot = await getDocs(q);
+  
+  const events = snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      date: data.timestamp?.seconds ? new Date(data.timestamp.seconds * 1000) : new Date(),
+    };
+  });
+
+  // Filter client-side by date range (avoids needing composite indexes for every query)
+  return events.filter((event) => event.date >= startDate);
+}
+
+export function aggregateAnalytics(events: any[]) {
+  const totalScans = events.filter((e) => e.eventType === 'qr_scan').length;
+  const totalARLaunches = events.filter((e) => e.eventType === 'ar_launch').length;
+  
+  // Group scans by day for the chart
+  const scansByDay: Record<string, number> = {};
+  const launchesByDay: Record<string, number> = {};
+  
+  events.forEach((event) => {
+    const dayKey = event.date.toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    if (event.eventType === 'qr_scan') {
+      scansByDay[dayKey] = (scansByDay[dayKey] || 0) + 1;
+    } else if (event.eventType === 'ar_launch') {
+      launchesByDay[dayKey] = (launchesByDay[dayKey] || 0) + 1;
+    }
+  });
+
+  // Merge into single array for Recharts
+  const allDays = new Set([...Object.keys(scansByDay), ...Object.keys(launchesByDay)]);
+  const chartData = Array.from(allDays)
+    .sort()
+    .map((day) => ({
+      date: day,
+      scans: scansByDay[day] || 0,
+      launches: launchesByDay[day] || 0,
+    }));
+
+  // Top products by scans
+  const productScans: Record<string, number> = {};
+  events.forEach((event) => {
+    if (event.eventType === 'qr_scan' && event.productId) {
+      productScans[event.productId] = (productScans[event.productId] || 0) + 1;
+    }
+  });
+
+  const topProducts = Object.entries(productScans)
+    .map(([productId, count]) => ({ productId, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  // Device breakdown
+  const devices: Record<string, number> = {};
+  events.forEach((event) => {
+    if (event.deviceType) {
+      devices[event.deviceType] = (devices[event.deviceType] || 0) + 1;
+    }
+  });
+
+  return {
+    totalScans,
+    totalARLaunches,
+    conversionRate: totalScans > 0 ? ((totalARLaunches / totalScans) * 100).toFixed(1) : 0,
+    chartData,
+    topProducts,
+    devices,
+  };
 }
