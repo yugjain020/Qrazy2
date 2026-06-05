@@ -51,7 +51,7 @@ export default function ProductForm({ mode, initialData }: ProductFormProps) {
     setVerticalMetadata((prev) => ({ ...prev, [fieldName]: value }));
   };
 
-  const handleSubmit = async (e: FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!user || !workspace) return;
 
@@ -60,12 +60,17 @@ export default function ProductForm({ mode, initialData }: ProductFormProps) {
       return;
     }
 
+    // SAFETY CHECK: Ensure workspaceId exists
+    if (!workspace.workspaceId) {
+      toast.error('Workspace ID is missing. Please refresh the page and try again.');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
 
       let imageUrl = initialData?.imageUrl || '';
 
-      // Upload new image if selected
       if (imageFile) {
         imageUrl = await uploadProductImage(imageFile, workspace.workspaceId);
       }

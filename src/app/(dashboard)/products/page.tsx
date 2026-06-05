@@ -1,36 +1,43 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { Plus, Search, MoreVertical, Edit, Trash2, Box, Eye, Loader2 } from 'lucide-react';
+import { Plus, Search, Edit, Box, Loader2 } from 'lucide-react';
 import { useBusinessVertical } from '@/lib/contexts/BusinessVerticalContext';
 import { getProductsByWorkspace, deleteProduct } from '@/lib/firebase/firestore';
 import toast from 'react-hot-toast';
 
 export default function ProductsPage() {
-  const { workspace, verticalConfig, businessType } = useBusinessVertical();
+  const { workspace, verticalConfig, loading: verticalLoading } = useBusinessVertical();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  const fetchProducts = async () => {
+    if (!workspace?.workspaceId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      console.log('Fetching products for workspace:', workspace.workspaceId);
+      const data = await getProductsByWorkspace(workspace.workspaceId);
+      console.log('Fetched products:', data);
+      setProducts(data);
+    } catch (error: any) {
+      console.error('Error fetching products:', error);
+      toast.error(`Failed to load products: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!workspace?.workspaceId) return;
-
-    const fetchProducts = async () => {
-      try {
-        const data = await getProductsByWorkspace(workspace.workspaceId);
-        setProducts(data);
-      } catch (error) {
-        toast.error('Failed to load products');
-      } finally {
-        setLoading(false);
-      }
-    };
-
+    if (verticalLoading) return;
     fetchProducts();
-  }, [workspace]);
+  }, [workspace?.workspaceId, verticalLoading]); // FIX: Use workspaceId string instead of object reference
 
   const handleDelete = async (productId: string) => {
     if (!confirm('Are you sure you want to delete this item?')) return;
@@ -48,7 +55,7 @@ export default function ProductsPage() {
     p.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (loading) {
+  if (loading || verticalLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-6 h-6 text-brand-500 animate-spin" />
@@ -68,10 +75,15 @@ export default function ProductsPage() {
             Manage your {verticalConfig.productLabels.plural.toLowerCase()} and AR experiences
           </p>
         </div>
-        <Link href="/products/new" className="btn-primary flex items-center gap-2 w-fit">
-          <Plus className="w-4 h-4" />
-          Add {verticalConfig.productLabels.singular}
-        </Link>
+        <div className="flex items-center gap-2">
+          <button onClick={fetchProducts} className="btn-secondary text-sm !py-2 !px-3">
+            Refresh
+          </button>
+          <Link href="/products/new" className="btn-primary flex items-center gap-2 w-fit">
+            <Plus className="w-4 h-4" />
+            Add {verticalConfig.productLabels.singular}
+          </Link>
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -149,7 +161,7 @@ export default function ProductsPage() {
                 </p>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-400 dark:text-gray-500">
-                    {new Date(product.createdAt?.seconds * 1000).toLocaleDateString()}
+                    {product.createdAt?.seconds ? new Date(product.createdAt.seconds * 1000).toLocaleDateString() : ''}
                   </span>
                   <div className="flex items-center gap-1">
                     <Link
