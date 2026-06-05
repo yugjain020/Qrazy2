@@ -125,7 +125,7 @@ export default function ProductsPage() {
         </motion.div>
       )}
 
-      {/* Products Grid */}
+            {/* Products Grid */}
       {filteredProducts.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredProducts.map((product, i) => (
@@ -136,6 +136,14 @@ export default function ProductsPage() {
               transition={{ delay: i * 0.05 }}
               className="glass-card-hover overflow-hidden group relative"
             >
+              {/* AR Badge */}
+              {product.glbUrl && (
+                <div className="absolute top-2 right-2 z-10 px-2 py-1 bg-brand-500 text-white text-[10px] font-bold rounded-md flex items-center gap-1 shadow-md">
+                  <Box className="w-3 h-3" />
+                  3D
+                </div>
+              )}
+
               {/* Image */}
               <div className="aspect-video bg-gray-100 dark:bg-dark-surface relative overflow-hidden">
                 {product.imageUrl ? (

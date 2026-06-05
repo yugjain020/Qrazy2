@@ -16,6 +16,39 @@ import { db, storage } from '@/lib/firebase/config';
 import { type BusinessType, type UserProfile, type Workspace } from '@/types';
 import { generateId } from '@/lib/utils/date';
 
+// Add to your imports at the top:
+// import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+// import { storage } from '@/lib/firebase/config';
+
+export async function uploadGLBToStorage(
+  glbBuffer: ArrayBuffer,
+  workspaceId: string,
+  productId: string
+): Promise<string> {
+  const storageRef = ref(storage, `ar-models/${workspaceId}/${productId}.glb`);
+  
+  // Upload the binary ArrayBuffer
+  await uploadBytes(storageRef, glbBuffer, {
+    contentType: 'model/gltf-binary',
+    customMetadata: {
+      workspaceId,
+      productId,
+    },
+  });
+
+  const downloadUrl = await getDownloadURL(storageRef);
+  return downloadUrl;
+}
+
+export async function updateProductGLBUrl(productId: string, glbUrl: string) {
+  const productRef = doc(db, 'products', productId);
+  await updateDoc(productRef, {
+    glbUrl,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+
 // ---------- User Operations ----------
 
 export async function createUserProfile(
